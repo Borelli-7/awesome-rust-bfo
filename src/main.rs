@@ -296,11 +296,33 @@ async fn get_stars(github_url: &str) -> Option<u32> {
                 warn!("Error while following redirect for {}: {}", github_url, err);
                 return None;
             }
-            let raw = followed.unwrap().text().await.unwrap();
+            let response = followed.unwrap();
+            let status = response.status();
+            let raw = match response.text().await {
+                Ok(raw) => raw,
+                Err(err) => {
+                    warn!(
+                        "Error while reading GitHub stars response for {}: {}",
+                        github_url, err
+                    );
+                    return None;
+                }
+            };
+            if !status.is_success() {
+                warn!(
+                    "GitHub stars request failed for {} with status {}: {}",
+                    github_url, status, raw
+                );
+                return None;
+            }
             let data = match serde_json::from_str::<GitHubStars>(&raw) {
                 Ok(val) => val,
                 Err(_) => {
-                    panic!("{} {:?}", github_url, raw);
+                    warn!(
+                        "Error parsing GitHub stars response for {}: {:?}",
+                        github_url, raw
+                    );
+                    return None;
                 }
             };
             Some(data.stargazers_count)
@@ -336,7 +358,25 @@ async fn get_rust_percentage(github_url: &str) -> Option<f64> {
                 warn!("Error while following redirect for {}: {}", github_url, err);
                 return None;
             }
-            let raw = followed.unwrap().text().await.unwrap();
+            let response = followed.unwrap();
+            let status = response.status();
+            let raw = match response.text().await {
+                Ok(raw) => raw,
+                Err(err) => {
+                    warn!(
+                        "Error while reading GitHub language response for {}: {}",
+                        github_url, err
+                    );
+                    return None;
+                }
+            };
+            if !status.is_success() {
+                warn!(
+                    "GitHub language request failed for {} with status {}: {}",
+                    github_url, status, raw
+                );
+                return None;
+            }
             // Example of response:
             // {
             //     "Rust": 1000,
@@ -346,7 +386,11 @@ async fn get_rust_percentage(github_url: &str) -> Option<f64> {
             let data = match serde_json::from_str::<GitHubLanguageInfo>(&raw) {
                 Ok(val) => val,
                 Err(_) => {
-                    panic!("{} {:?} {}", github_url, raw, rewritten);
+                    warn!(
+                        "Error parsing GitHub language response for {} ({}): {:?}",
+                        github_url, rewritten, raw
+                    );
+                    return None;
                 }
             };
             if data.is_empty() {
